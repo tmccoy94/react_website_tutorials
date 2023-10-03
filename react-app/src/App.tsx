@@ -1,32 +1,80 @@
-import axios, { AxiosError } from "axios";
 import { useEffect, useState } from "react";
-
-interface User {
-  id: number;
-  name: string;
-}
+import { AxiosError, CanceledError } from "./services/api-client";
+import userService, { User } from "./services/user-service";
+import useUsers from "./hooks/useUsers";
 
 function App() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [error, setError] = useState("");
+  const { users, error, isLoading, setUsers, setError, setLoading } =
+    useUsers();
 
-  useEffect(() => {
-    const controller = new AbortController();
+  const errorHandler = (error: AxiosError, users: User[]) => {
+    setError(error.message);
+    setUsers(users);
+  };
 
-    axios
-      .get<User[]>("https://jsonplaceholder.typicode.com/users")
-      .then((res) => setUsers(res.data))
+  const deleteUser = (user: User) => {
+    const originalUsers = [...users];
+    setUsers(users.filter((u) => u.id !== user.id));
+
+    userService.delete(user.id).catch((err) => {
+      errorHandler(err, originalUsers);
+    });
+  };
+
+  const addUser = () => {
+    const originalUsers = [...users];
+    const newUser = { id: 0, name: "Tom Haverford" };
+    console.log(newUser);
+
+    userService
+      .add(newUser)
+      .then((res) => setUsers([res.data, ...users])) //data: savedUser applies alias to data decontstructed from the response (so it's actually response.data).
       .catch((err) => {
-        console.log(err);
-        setError(err.message);
+        errorHandler(err, originalUsers);
       });
-  }, []);
+  };
+
+  const updateUser = (user: User) => {
+    const originalUsers = [...users];
+    const updatedUser = { ...user, name: user.name + "!" };
+    setUsers(users.map((u) => (u.id === user.id ? updatedUser : u)));
+
+    userService.update(updatedUser).catch((err) => {
+      errorHandler(err, originalUsers);
+    });
+  };
 
   return (
     <>
       {error && <p className="text-danger">{error}</p>}
-      <ul>
-        {users && users.map((user) => <li key={user.id}>{user.name}</li>)}
+      {isLoading && <div className="spinner-border"></div>}
+      <button className="btn btn-primary mb-3" onClick={addUser}>
+        Add
+      </button>
+      <ul className="list-group">
+        {users &&
+          users.map((user) => (
+            <li
+              className="list-group-item d-flex justify-content-between"
+              key={user.id}
+            >
+              {user.name}
+              <div>
+                <button
+                  className="btn btn-outline-secondary mx-2"
+                  onClick={() => updateUser(user)}
+                >
+                  Update
+                </button>
+                <button
+                  className="btn btn-outline-danger"
+                  onClick={() => deleteUser(user)}
+                >
+                  Delete
+                </button>
+              </div>
+            </li>
+          ))}
       </ul>
     </>
   );
